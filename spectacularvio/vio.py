@@ -7,6 +7,9 @@ import depthai
 import spectacularAI
 import json
 import threading
+from geometry_msgs.msg import TransformStamped
+from tf2_ros import TransformBroadcaster
+
 
 class MinimalPublisher(Node):
 
@@ -16,10 +19,25 @@ class MinimalPublisher(Node):
         # self.imu_publisher_ = self.create_publisher(Imu, 'vio/imu', 10)
         self.pipeline = depthai.Pipeline()
         self.vio_pipeline = spectacularAI.depthai.Pipeline(self.pipeline)
+        self.tf_broadcaster = TransformBroadcaster(self)
         self.main()
         # hz = 100
         # timer_period = 1.0 / hz  # seconds
         # self.timer = self.create_timer(timer_period, self.timer_callback)
+
+    def pub_tf(self, odom_msg):
+        t = TransformStamped()
+        t.header.stamp = self.get_clock().now().to_msg()
+        t.header.frame_id = 'vio_odom'
+        t.child_frame_id = 'vio'
+        t.transform.translation.x = odom_msg.pose.pose.position.x
+        t.transform.translation.y = odom_msg.pose.pose.position.y
+        t.transform.translation.z = odom_msg.pose.pose.position.z
+        t.transform.rotation.x = odom_msg.pose.pose.orientation.x
+        t.transform.rotation.y = odom_msg.pose.pose.orientation.y
+        t.transform.rotation.z = odom_msg.pose.pose.orientation.z
+        t.transform.rotation.w = odom_msg.pose.pose.orientation.w
+        self.tf_broadcaster.sendTransform(t)
 
     def main(self):
         with depthai.Device(self.pipeline) as device, \
@@ -52,6 +70,7 @@ class MinimalPublisher(Node):
                 odom_msg.twist.twist.angular.y = angularVelocity['y']
                 odom_msg.twist.twist.angular.z = angularVelocity['z']
                 self.odom_publisher_.publish(odom_msg)
+                self.pub_tf(odom_msg)
                 # self.imu_publisher_.publish(imu_msg)
                 # self.get_logger().info('------------------------------------------')
                 # self.get_logger().info('acceleration: {}'.format(acceleration))
